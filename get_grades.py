@@ -19,6 +19,7 @@ from email.utils import formataddr
 
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.action_chains import ActionChains
 
 # ================= 配置区 =================
 USERNAME = os.environ.get("STU_ID")
@@ -59,33 +60,56 @@ def get_grades():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
-    # 模拟浏览器，防止某些JS加载不全
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
     
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"})
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "window.chrome = {runtime: {}};"})
 
     try:
         # 1. 登录
         print("1. 登录...")
         driver.get('https://auth.sztu.edu.cn/idp/authcenter/ActionAuthChain?entityId=jiaowu')
         wait = WebDriverWait(driver, 30)
-        wait.until(EC.presence_of_element_located((By.ID, "j_username"))).send_keys(USERNAME)
-        driver.find_element(By.ID, "j_password").send_keys(PASSWORD)
-        driver.find_element(By.ID, "loginButton").click()
         
-        # 等待登录完成（页面跳转到 jwxt 域）
-        print("2. 等待登录跳转...")
-        time.sleep(3)
-        try:
-            WebDriverWait(driver, 20).until(
-                EC.url_contains("jwxt.sztu.edu.cn")
-            )
-            print("   ✅ 登录成功，已跳转到教务系统")
-        except:
-            print("   ⚠️ 未检测到跳转，尝试直接携带 cookies 访问...")
-            # 如果没跳转，记下 cookies 手动访问
+        # 等待登录表单加载
+        wait.until(EC.presence_of_element_located((By.ID, "j_username")))
+        driver.find_element(By.ID, "j_username").clear()
+        driver.find_element(By.ID, "j_username").send_keys(USERNAME)
+        time.sleep(1)
+        password_input = driver.find_element(By.ID, "j_password")
+        password_input.clear()
+        password_input.send_keys(PASSWORD)
+        time.sleep(1)
+        
+        # 用真实鼠标点击登录按钮
+        print("   点击登录按钮...")
+        login_btn = driver.find_element(By.ID, "loginButton")
+        ActionChains(driver).move_to_element(login_btn).click().perform()
+        
+        # 等待登录完成：等待 URL 不再是 auth 登录页
+        print("2. 等待登录完成...")
+        redirect_waited = False
+        for i in range(30):
+            time.sleep(2)
+            current_url = driver.current_url
+            print(f"   第{i+1}次检查: {current_url[:80]}")
+            if "jwxt" in current_url:
+                print("   ✅ 检测到跳转到教务系统!")
+                redirect_waited = True
+                break
+            # 如果页面内容变了（不再是登录表单），说明可能登录成功
+            if "用户登录" not in driver.page_source:
+                print("   ✅ 页面内容已变化，可能登录成功")
+                redirect_waited = True
+                break
+                
+        if not redirect_waited:
+            print("   ⚠️ 登录后未跳转，尝试直接访问...")
             time.sleep(3)
         
         # 2. 成绩页
