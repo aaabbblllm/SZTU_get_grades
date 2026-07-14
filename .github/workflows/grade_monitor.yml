@@ -15,12 +15,15 @@ jobs:
 
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 安装 Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.9'
+          python-version: '3.11'
+
+      - name: 安装 Chrome
+        uses: browser-actions/setup-chrome@v1
 
       - name: 安装依赖
         run: pip install -r requirements.txt
@@ -39,10 +42,12 @@ jobs:
         run: |
           git config user.name "GPA Monitor Bot"
           git config user.email "bot@example.com"
-          git add -f grade_history.json
-          if ! git diff --cached --quiet; then
-            git commit -m "auto: update grade history"
-            git push
-          else
-            echo "无变化，跳过提交"
+          if [ -f grade_history.json ]; then
+            git add -f grade_history.json
+            if ! git diff --cached --quiet; then
+              git commit -m "auto: update grade history"
+              git push
+            else
+              echo "无变化，跳过提交"
+            fi
           fi
