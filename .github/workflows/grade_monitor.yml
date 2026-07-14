@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 安装 Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
@@ -40,5 +40,9 @@ jobs:
           git config user.name "GPA Monitor Bot"
           git config user.email "bot@example.com"
           git add -f grade_history.json
-          git diff --cached --quiet || git commit -m "auto: update grade history"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "auto: update grade history"
+            git push
+          else
+            echo "无变化，跳过提交"
+          fi
