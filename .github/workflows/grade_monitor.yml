@@ -25,7 +25,7 @@ jobs:
       - name: 安装 Chrome
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
+          sudo apt-get install -y google-chrome-stable
 
       - name: 安装依赖
         run: pip install -r requirements.txt
