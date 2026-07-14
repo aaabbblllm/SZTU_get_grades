@@ -17,6 +17,9 @@ from selenium.webdriver.support import expected_conditions as EC
 # 引入这个新模块
 from email.utils import formataddr
 
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
 # ================= 配置区 =================
 USERNAME = os.environ.get("STU_ID")
 PASSWORD = os.environ.get("STU_PWD")
@@ -57,8 +60,10 @@ def get_grades():
     options.add_argument("--window-size=1920,1080")
     # 模拟浏览器，防止某些JS加载不全
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36")
+    options.binary_location = "/usr/bin/chromium-browser"
     
-    driver = webdriver.Chrome(options=options)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"})
 
     try:
@@ -70,14 +75,35 @@ def get_grades():
         driver.find_element(By.ID, "j_password").send_keys(PASSWORD)
         driver.find_element(By.ID, "loginButton").click()
         
+        # 等待登录完成（页面跳转到 jwxt 域）
+        print("2. 等待登录跳转...")
+        time.sleep(3)
+        try:
+            WebDriverWait(driver, 20).until(
+                EC.url_contains("jwxt.sztu.edu.cn")
+            )
+            print("   ✅ 登录成功，已跳转到教务系统")
+        except:
+            print("   ⚠️ 未检测到跳转，尝试直接携带 cookies 访问...")
+            # 如果没跳转，记下 cookies 手动访问
+            time.sleep(3)
+        
         # 2. 成绩页
-        print("2. 进成绩页...")
-        time.sleep(5)
+        print("3. 进成绩页...")
         driver.get("https://jwxt.sztu.edu.cn/jsxsd/kscj/cjcx_frm")
         time.sleep(5)
 
+        # 检查是否被踢回登录页
+        if "用户登录" in driver.page_source or "请先登录" in driver.page_source:
+            print("   ⚠️ 被踢回登录页，可能是 auth cookie 没带过去，尝试先访问 jwxt 首页...")
+            driver.get("https://jwxt.sztu.edu.cn/jsxsd/")
+            time.sleep(3)
+            # 再次尝试成绩页
+            driver.get("https://jwxt.sztu.edu.cn/jsxsd/kscj/cjcx_frm")
+            time.sleep(5)
+
         # 3. 全局搜索并点击查询按钮
-        print("3. 正在寻找查询按钮...")
+        print("4. 正在寻找查询按钮...")
         
         # 定义一个在当前frame操作的函数
         def try_click_query():
@@ -121,8 +147,8 @@ def get_grades():
             print("   等待数据刷新...")
             time.sleep(5) # 给足够时间刷新
 
-        # 4. 提取数据
-        print("4. 读取数据...")
+        # 4. 读取数据
+        print("5. 读取数据...")
         
         # 重新定位结果 Frame (cjcx_list_frm)
         # 它是结果列表，可能在点击后才加载出来

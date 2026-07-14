@@ -23,7 +23,9 @@ jobs:
           python-version: '3.11'
 
       - name: 安装 Chrome
-        uses: browser-actions/setup-chrome@v1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
 
       - name: 安装依赖
         run: pip install -r requirements.txt
